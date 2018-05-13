@@ -1,0 +1,154 @@
+clear all;
+close all;
+error = zeros(1,50);
+%for t =1:1:50
+N = 2000;A = 0.1;w = 2*pi;
+P = [0.8 0.2;0.2 0.8];
+y = zeros(N,1);
+s = zeros(N,1);
+% transition
+% 2 States Markov Chain Simulation
+C = [-1, 1];
+p1 = rand(1);
+state = zeros(2,N);
+state(:,1) = [p1,1-p1];
+%Gaussian noise
+noise = normrnd(0,1,[1,N]);
+%sine wave noise
+for i = 1:1:N
+    sine(i) = A*sin(w*i);
+end
+% sate simulation
+dice = rand(1,N);
+if state(1) <= dice(1)
+    s(1) = -1;
+else
+    s(1) = 1;
+end
+for i = 2:1:N
+    state(:,i) = P * state(:,i-1);
+    if state(1,i) <= dice(i)
+        s(i) = -1;
+    else
+        s(i) = 1;
+    end
+end
+% y
+y = s + noise' + sine';
+%hmm filter
+pis = zeros(N,2);
+pis(1,:)= [rand 1-rand];
+for k =2:N
+    trial = zeros(1,2);
+    for i=1:2
+        trial(i)=1/sqrt(2*pi)*exp(-((y(k)-C(i)-A*sin(w*k))^2)/2)*sum(P(:,i).*pis(k-1,:)');
+    end
+    de=sum(trial);
+    pis(k,:)=trial./de;
+end
+%output sequence
+r =pis*C';
+for i = 1:1:N
+    if r(i) < 0
+       es(i) =  -1;
+    else
+      es(i) =  1;  
+    end
+end
+%backward
+beta=zeros(N,2);
+beta(N,:)=ones(1,2)';
+for k=N-1:-1:1
+    Betay=zeros(2,1);
+    for i=1:2
+        Betay(i)=1/sqrt(2*pi)*exp(-(y(k+1)-C(i)-A*sin(w*(k+1)))^2/2);
+    end
+    Betay=diag(Betay);
+    beta(k,:)=P*Betay*beta(k+1,:)';
+    beta(k,:)=beta(k,:)/sum(beta(k,:));
+end
+pis2=zeros(N,2);
+for k=2:N
+    for i=1:2
+        trial(k,i)=pis(k,i)*beta(k,i);
+    end
+    de(k)=sum(trial(k,:));
+    pis2(k,:)=trial(k,:)./de(k);
+end
+es2 = pis2*C';
+%likelihood
+A2=10*rand(1);
+step = 30;
+alpha=zeros(N,2);
+alpha(1,:)= [rand, 1-rand];
+beta=zeros(N,2);
+beta (N,:)= [rand, 1-rand];
+r=zeros(N,2);
+l=zeros(1,step);
+%for ind=1:step
+%E step
+%alpha forward
+for k=1:N
+    for i=1:2
+        fa = exp(-(y(k+1)-C(i)-A2*sin(w*(k+1)))^2/2);
+        alpha(k+1,i)=sum(alpha(k,:)*P(:,i))*1/sqrt(2*pi)*fa;
+    end
+    alpha(k+1,:)=alpha(k+1,:)/max(alpha(k+1,:));
+end
+%beta backward
+for k=N-1:-1:1
+    for i=1:2
+        trial=zeros(1,2);
+        for i=1:2
+            fb = exp(-(y(k+1)-c(j)-A2*sin(w*(k+1)))^2/2);
+            trial(i)=beta(k+1,i)*P(i,i)*1/sqrt(2*pi)*fb;
+        end
+        beta(k,i)=sum(trial);
+    end
+    beta(k,:)=beta(k,:)/max(beta(k,:));
+end
+%r
+for k=1:N
+    for i=1:2
+        r(k,i)=alpha(k,i)*beta(k,i);
+    end
+    r(k,:)=r(k,:)/sum(r(k,:));
+end
+rk=zeros(N,2,2);
+for k=1:N-1
+    for i=1:2
+        for j=1:2
+            rk(k,i,j)=arf(k,i)*P(i,j)*1/sqrt(2*pi)*exp(-(y(k+1)-c(j)-A2*sin(w*(k+1)))^2/2)*beta(k+1,j);
+        end
+    end
+    rk(k,:,:)=rk(k,:,:)/sum(sum(rk(k,:,:)));
+end
+%M step
+trial=0;
+de=0;
+for t=1:N
+    for i=1:2
+        trial=trial+(y(t)-C(i))*sin(w*t)*r(t,i);
+        de=de+sin(w*t)^2*r(t,i);
+    end
+end
+A2=trial/de;
+for i=1:2
+    for t=1:N
+        l(ind)=l(ind)-r(t,i)*(y(t)-c(i)-A2*sin(w*t))^2/2;
+    end
+end
+for i=1:2
+    for i=1:2
+        for t=1:N
+            l(ind)=l(ind)+rk(t,i,i)*log(P(i,i));
+        end
+    end
+end
+%end
+figure;
+plot(1:ite,l)
+xlabel('t')
+legend('likelihood')
+title('Graph of EM of HMM')
+xlabel('steps')
